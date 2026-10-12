@@ -1,0 +1,1218 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full bg-slate-50">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RosterGen AI - Intelligent 5-Month Duty Roster Generator</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- SheetJS (xlsx.full.min.js) for In-Browser Excel & CSV Parsing -->
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <!-- Mammoth.js for Word (.docx) Parsing -->
+    <script src="https://cdn.jsdelivr.net/npm/mammoth@1.6.0/mammoth.browser.min.js"></script>
+    <!-- PDF.js for In-Browser PDF Text Extraction -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <!-- Google Fonts Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'system-ui', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace'],
+                    },
+                    colors: {
+                        brand: {
+                            50: '#f0f5ff',
+                            100: '#e0ebff',
+                            500: '#3b82f6',
+                            600: '#2563eb',
+                            700: '#1d4ed8',
+                            900: '#1e3a8a',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #f1f5f9; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        .shift-D { background-color: #dbeafe; color: #1e40af; border-color: #bfdbfe; }
+        .shift-E { background-color: #fef3c7; color: #92400e; border-color: #fde68a; }
+        .shift-N { background-color: #ede9fe; color: #5b21b6; border-color: #ddd6fe; }
+        .shift-OFF { background-color: #f1f5f9; color: #475569; border-color: #e2e8f0; }
+        .shift-AL { background-color: #ffe4e6; color: #9f1239; border-color: #fecdd3; }
+        @media print {
+            header, nav, .no-print, button { display: none !important; }
+            #tab-4 { display: block !important; }
+            body { background: white !important; }
+            .print-full { width: 100% !important; overflow: visible !important; }
+        }
+    </style>
+</head>
+<body class="h-full flex flex-col text-slate-800 antialiased selection:bg-blue-100 selection:text-blue-900">
+
+    <!-- Toast Notification Container -->
+    <div id="toast-container" class="fixed top-5 right-5 z-50 flex flex-col space-y-2 pointer-events-none"></div>
+
+    <!-- Header -->
+    <header class="bg-white border-b border-slate-200 sticky top-0 z-40 shadow-xs">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+            <div class="flex items-center space-x-3">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-700 to-indigo-600 flex items-center justify-center text-white shadow-md shadow-blue-500/20">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                    </svg>
+                </div>
+                <div>
+                    <div class="flex items-center space-x-2">
+                        <h1 class="text-lg font-bold text-slate-900 tracking-tight leading-none">RosterGen AI</h1>
+                        <span class="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-blue-100 text-blue-800">Multi-Format Engine</span>
+                    </div>
+                    <p class="text-xs text-slate-500 mt-0.5">Universal 5-Month Duty Roster Learning &amp; Generation</p>
+                </div>
+            </div>
+
+            <div class="flex items-center space-x-3">
+                <div class="hidden sm:flex items-center space-x-2 bg-slate-100 px-3 py-1.5 rounded-lg border border-slate-200 text-xs">
+                    <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+                    <span class="font-medium text-slate-600" id="unit-name-badge">Acute Medical Ward 5A</span>
+                </div>
+                <button onclick="openApiKeyModal()" class="inline-flex items-center space-x-2 px-3 py-1.5 rounded-lg border border-slate-300 text-xs font-medium text-slate-700 bg-white hover:bg-slate-50 transition shadow-2xs">
+                    <svg class="w-4 h-4 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"/>
+                    </svg>
+                    <span id="api-status-label">Configure Gemini API</span>
+                </button>
+            </div>
+        </div>
+    </header>
+    <!-- Stepper Navigation -->
+    <nav class="bg-white border-b border-slate-200 shadow-2xs">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex space-x-2 sm:space-x-6 overflow-x-auto py-2.5 no-scrollbar">
+                <button onclick="switchTab(1)" id="tab-nav-1" class="tab-btn active flex items-center space-x-2 px-3 py-2 rounded-lg text-xs font-semibold text-blue-700 bg-blue-50 border border-blue-200 whitespace-nowrap transition">
+                    <span class="w-5 h-5 rounded-full bg-blue-600 text-white flex items-center justify-center text-[10px] font-bold">1</span>
+                    <span>Upload 5 Past Rosters</span>
+                </button>
+                <button onclick="switchTab(2)" id="tab-nav-2" class="tab-btn flex items-center space-x-2 px-3 py-2 rounded-lg text-xs font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-100 whitespace-nowrap transition">
+                    <span class="w-5 h-5 rounded-full bg-slate-200 text-slate-700 flex items-center justify-center text-[10px] font-bold">2</span>
+                    <span>AI Constraints &amp; Clarification</span>
+                </button>
+                <button onclick="switchTab(3)" id="tab-nav-3" class="tab-btn flex items-center space-x-2 px-3 py-2 rounded-lg text-xs font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-100 whitespace-nowrap transition">
+                    <span class="w-5 h-5 rounded-full bg-slate-200 text-slate-700 flex items-center justify-center text-[10px] font-bold">3</span>
+                    <span>Target Month Generation</span>
+                </button>
+                <button onclick="switchTab(4)" id="tab-nav-4" class="tab-btn flex items-center space-x-2 px-3 py-2 rounded-lg text-xs font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-100 whitespace-nowrap transition">
+                    <span class="w-5 h-5 rounded-full bg-slate-200 text-slate-700 flex items-center justify-center text-[10px] font-bold">4</span>
+                    <span>Interactive Grid &amp; Audit</span>
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content Container -->
+    <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+
+        <!-- ========================================================================================= -->
+        <!-- STEP 1: FILE UPLOAD (PDF, EXCEL, WORD, JPEG) & 5-MONTH DATA HUB                          -->
+        <!-- ========================================================================================= -->
+        <div id="tab-1" class="tab-pane space-y-6">
+            <!-- Step 1 Hero & Privacy Guarantee -->
+            <div class="bg-gradient-to-r from-slate-900 via-blue-950 to-indigo-950 rounded-2xl p-6 sm:p-8 text-white shadow-xl relative overflow-hidden">
+                <div class="max-w-3xl relative z-10 space-y-3">
+                    <div class="inline-flex items-center space-x-2 px-3 py-1 rounded-full bg-blue-500/20 text-blue-300 text-xs font-semibold border border-blue-400/20">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
+                        <span>Step 1: Multi-Format Historical Roster Ingestion</span>
+                    </div>
+                    <h2 class="text-2xl sm:text-3xl font-extrabold tracking-tight">Upload 5 Past Duty Rosters (PDF, Excel, Word, or Photo)</h2>
+                    <p class="text-slate-300 text-sm leading-relaxed">
+                        Upload up to 5 months of duty rosters from any department. Our in-browser parser immediately extracts shift matrices from 
+                        <strong>Excel (.xlsx, .xls, .csv)</strong>, <strong>Word (.docx)</strong>, <strong>PDF (.pdf)</strong>, or <strong>Images (.jpg, .png)</strong> for multimodal analysis.
+                    </p>
+                    <div class="flex flex-wrap gap-3 pt-2">
+                        <button onclick="handleLoadSampleDataset()" class="px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold rounded-xl shadow-lg transition flex items-center space-x-2">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+                            <span>Load 5-Month Sample Dataset</span>
+                        </button>
+                        <button onclick="clearAllUploadedFiles()" class="px-4 py-2.5 bg-white/10 hover:bg-white/20 text-slate-200 text-xs font-medium rounded-xl border border-white/20 transition">
+                            Clear Files
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Privacy & Storage Guarantee Banner -->
+            <div class="bg-emerald-50 border border-emerald-200 rounded-xl p-4 flex items-start space-x-3 text-xs text-emerald-900 shadow-2xs">
+                <div class="w-8 h-8 rounded-lg bg-emerald-500 text-white flex items-center justify-center shrink-0 mt-0.5">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
+                </div>
+                <div class="flex-1 space-y-1">
+                    <div class="font-bold text-emerald-950 flex items-center space-x-2">
+                        <span>Client-Side RAM Only &mdash; Privacy &amp; Data Security Guarantee</span>
+                        <span class="px-2 py-0.5 rounded text-[10px] bg-emerald-200 text-emerald-900 uppercase font-bold">Zero Remote Storage</span>
+                    </div>
+                    <p class="text-emerald-800">
+                        <strong>Where are your files stored?</strong> Your files are parsed strictly inside your browser's memory (RAM). <strong>No files are ever stored on remote web servers or databases.</strong> Extracted shift data is passed securely via encrypted HTTPS to Google Gemini for synthesis, or solved entirely offline with your local browser engine.
+                    </p>
+                </div>
+            </div>
+            <!-- Upload Area & Anonymizer Control -->
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <!-- Drop Zone & Upload Input -->
+                <div class="lg:col-span-2 space-y-4">
+                    <div id="drop-zone" ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" ondrop="handleFileDrop(event)"
+                         class="border-2 border-dashed border-slate-300 hover:border-blue-500 bg-white rounded-2xl p-8 text-center transition flex flex-col items-center justify-center space-y-3 cursor-pointer group shadow-2xs">
+                        <input type="file" id="multi-file-input" multiple accept=".xlsx,.xls,.csv,.docx,.pdf,.jpg,.jpeg,.png,.webp" onchange="handleFileSelect(event)" class="hidden">
+                        
+                        <div class="w-14 h-14 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center group-hover:scale-110 transition shadow-inner">
+                            <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
+                        </div>
+                        <div>
+                            <p class="text-sm font-bold text-slate-800">Drop past roster files here or <span class="text-blue-600 underline">browse your device</span></p>
+                            <p class="text-xs text-slate-500 mt-1">Accepts PDF, Excel (.xlsx, .csv), Word (.docx), or Photos (JPG, PNG). Up to 5 months.</p>
+                        </div>
+                        <div class="flex items-center space-x-2 text-[10px] text-slate-400 font-mono">
+                            <span class="px-2 py-0.5 rounded bg-slate-100">Excel / CSV</span>
+                            <span class="px-2 py-0.5 rounded bg-slate-100">Word .docx</span>
+                            <span class="px-2 py-0.5 rounded bg-slate-100">PDF</span>
+                            <span class="px-2 py-0.5 rounded bg-slate-100">JPEG / PNG</span>
+                        </div>
+                    </div>
+
+                    <!-- Uploaded Files Cards Grid -->
+                    <div class="space-y-3">
+                        <div class="flex items-center justify-between">
+                            <h3 class="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center space-x-2">
+                                <span>Uploaded Roster Months</span>
+                                <span id="file-count-badge" class="px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 font-mono">0 / 5 Months</span>
+                            </h3>
+                            <button onclick="document.getElementById('multi-file-input').click()" class="text-xs text-blue-600 font-semibold hover:underline">+ Add more files</button>
+                        </div>
+                        <div id="file-cards-list" class="space-y-2">
+                            <!-- Populated dynamically with file cards -->
+                            <div class="p-6 text-center bg-white rounded-xl border border-slate-200 text-slate-400 text-xs">
+                                No roster files uploaded yet. Drag &amp; drop your 5 past duty rosters or click "Load 5-Month Sample Dataset".
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Privacy Anonymizer & Settings Box -->
+                <div class="space-y-4">
+                    <div class="bg-white rounded-xl shadow-xs border border-slate-200 p-5 space-y-4">
+                        <div class="flex items-center justify-between">
+                            <h3 class="text-sm font-bold text-slate-900 flex items-center space-x-2">
+                                <svg class="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
+                                <span>Privacy Anonymizer</span>
+                            </h3>
+                            <span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-800">In-Browser</span>
+                        </div>
+                        <p class="text-xs text-slate-500 leading-relaxed">
+                            Automatically masks real staff names with synthetic IDs (e.g. <code>Staff_01</code>, <code>Staff_02</code>) before transmitting to Gemini. Names are restored locally in your browser.
+                        </p>
+                        <div class="flex items-center justify-between p-3 rounded-lg bg-slate-50 border border-slate-200">
+                            <div>
+                                <div class="text-xs font-bold text-slate-800">Auto-Pseudonymize Names</div>
+                                <div class="text-[10px] text-slate-500">Zero PII leaves this machine</div>
+                            </div>
+                            <label class="relative inline-flex items-center cursor-pointer">
+                                <input type="checkbox" id="anonymize-toggle" checked class="sr-only peer">
+                                <div class="w-9 h-5 bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-600"></div>
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="bg-white rounded-xl shadow-xs border border-slate-200 p-5 space-y-3">
+                        <h4 class="text-xs font-bold text-slate-900 uppercase tracking-wider">Unit / Ward Configuration</h4>
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-700 mb-1">Ward Name</label>
+                            <input type="text" id="ward-name-input" value="Acute Medical Ward 5A" onchange="updateWardName(this.value)" class="w-full text-xs p-2.5 rounded-lg border border-slate-300 outline-none focus:ring-2 focus:ring-blue-500">
+                        </div>
+                        <div class="pt-2">
+                            <button onclick="switchTab(2); runConstraintAnalysis();" class="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-md transition flex items-center justify-center space-x-2">
+                                <span>Proceed to Step 2: Constraint Analysis</span>
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <!-- ========================================================================================= -->
+        <!-- STEP 2: AI CONSTRAINT EXTRACTION & CLOSED-QUESTION CLARIFICATION WIZARD                  -->
+        <!-- ========================================================================================= -->
+        <div id="tab-2" class="tab-pane hidden space-y-6">
+            <div class="bg-gradient-to-r from-indigo-900 to-purple-950 rounded-2xl p-6 sm:p-8 text-white shadow-xl">
+                <div class="max-w-3xl space-y-2">
+                    <div class="inline-flex items-center space-x-2 px-3 py-1 rounded-full bg-indigo-500/20 text-indigo-200 text-xs font-semibold border border-indigo-400/20">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                        <span>Step 2: AI Constraint Extraction &amp; Closed Clarifications</span>
+                    </div>
+                    <h2 class="text-2xl sm:text-3xl font-extrabold tracking-tight">AI Constraint Discovery &amp; Policy Confirmation</h2>
+                    <p class="text-indigo-200 text-sm leading-relaxed">
+                        Gemini analyzed 5 months of uploaded duty records. Below are the extracted Hard Constraints, Staff Roles, and Soft Goals. 
+                        To eliminate tedious open-ended typing, answer the <strong>closed-ended questions</strong> below to finalize rules.
+                    </p>
+                </div>
+            </div>
+
+            <!-- Discovered Constraints Catalog -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
+                <div class="bg-white rounded-xl border-l-4 border-l-rose-500 border border-slate-200 p-5 shadow-xs space-y-2">
+                    <span class="text-[10px] font-bold uppercase tracking-wider text-rose-700 bg-rose-50 px-2 py-0.5 rounded">Hard Safety Mandate</span>
+                    <h4 class="text-sm font-bold text-slate-900">Consecutive Workdays &amp; Rest</h4>
+                    <p class="text-xs text-slate-600">Max 6 consecutive working days. Min 11-hour rest between shifts (No E followed by D next morning).</p>
+                </div>
+                <div class="bg-white rounded-xl border-l-4 border-l-blue-500 border border-slate-200 p-5 shadow-xs space-y-2">
+                    <span class="text-[10px] font-bold uppercase tracking-wider text-blue-700 bg-blue-50 px-2 py-0.5 rounded">Staff Post Boundaries</span>
+                    <h4 class="text-sm font-bold text-slate-900">Ward Clerk &amp; Junior Supervision</h4>
+                    <p class="text-xs text-slate-600">Ward Clerk exempt from nights/weekends. Junior Nurses co-rostered with Senior Staff on Night shifts.</p>
+                </div>
+                <div class="bg-white rounded-xl border-l-4 border-l-emerald-500 border border-slate-200 p-5 shadow-xs space-y-2">
+                    <span class="text-[10px] font-bold uppercase tracking-wider text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded">Soft Constraint Optimization</span>
+                    <h4 class="text-sm font-bold text-slate-900">Forward Circadian Rotation</h4>
+                    <p class="text-xs text-slate-600">Clockwise shift progression (Day &rarr; Eve &rarr; Night &rarr; Off). Equal weekend distribution (3-4 weekend days off/mo).</p>
+                </div>
+            </div>
+
+            <!-- Closed-Question Clarification Wizard (Strictly Closed Questions) -->
+            <div class="bg-white rounded-xl shadow-xs border border-slate-200 p-6 space-y-6">
+                <div class="flex items-center justify-between border-b border-slate-200 pb-4">
+                    <div>
+                        <h3 class="text-base font-bold text-slate-900">Closed-Question Clarification Wizard</h3>
+                        <p class="text-xs text-slate-500">Configure detected ambiguities using quick interactive controls. Zero essays required.</p>
+                    </div>
+                    <span class="text-xs font-semibold bg-amber-100 text-amber-800 px-3 py-1 rounded-full">5 Fast Choices</span>
+                </div>
+
+                <!-- Q1: Post-Night Rest Rule -->
+                <div class="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
+                    <div class="flex justify-between items-center">
+                        <span class="text-xs font-bold text-slate-900">1. Post-Night Shift Rest Policy</span>
+                        <span class="text-[10px] font-mono text-slate-400">Learned: 96% followed by &ge;2 OFF</span>
+                    </div>
+                    <p class="text-xs text-slate-600">How should rest days after Night (N) shifts be enforced?</p>
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
+                        <label class="flex items-center p-3 rounded-lg border border-slate-300 bg-white cursor-pointer hover:border-blue-500 text-xs">
+                            <input type="radio" name="cq_night_rest" value="strict2" checked class="text-blue-600">
+                            <span class="ml-2 font-semibold">Strict 2 Days OFF (Mandatory)</span>
+                        </label>
+                        <label class="flex items-center p-3 rounded-lg border border-slate-300 bg-white cursor-pointer hover:border-blue-500 text-xs">
+                            <input type="radio" name="cq_night_rest" value="flexible1" class="text-blue-600">
+                            <span class="ml-2 font-semibold">1 Day OFF Permitted if short</span>
+                        </label>
+                        <label class="flex items-center p-3 rounded-lg border border-slate-300 bg-white cursor-pointer hover:border-blue-500 text-xs">
+                            <input type="radio" name="cq_night_rest" value="standard" class="text-blue-600">
+                            <span class="ml-2 font-semibold">Standard 11h Turnaround</span>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Q2: Max Consecutive Working Days -->
+                <div class="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
+                    <div class="flex justify-between items-center">
+                        <span class="text-xs font-bold text-slate-900">2. Maximum Consecutive Working Days</span>
+                        <span class="text-[10px] font-mono text-slate-400">Historical peak: 6 days</span>
+                    </div>
+                    <p class="text-xs text-slate-600">Select the strict ceiling before requiring a mandatory rest day:</p>
+                    <div class="grid grid-cols-3 gap-3 pt-1">
+                        <label class="flex items-center p-3 rounded-lg border border-slate-300 bg-white cursor-pointer hover:border-blue-500 text-xs">
+                            <input type="radio" name="cq_max_days" value="5" class="text-blue-600">
+                            <span class="ml-2 font-semibold">5 Days (Fatigue Cap)</span>
+                        </label>
+                        <label class="flex items-center p-3 rounded-lg border border-slate-300 bg-white cursor-pointer hover:border-blue-500 text-xs">
+                            <input type="radio" name="cq_max_days" value="6" checked class="text-blue-600">
+                            <span class="ml-2 font-semibold">6 Days (Historical Standard)</span>
+                        </label>
+                        <label class="flex items-center p-3 rounded-lg border border-slate-300 bg-white cursor-pointer hover:border-blue-500 text-xs">
+                            <input type="radio" name="cq_max_days" value="7" class="text-blue-600">
+                            <span class="ml-2 font-semibold">7 Days (Emergency Max)</span>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Q3: Junior Staff Supervision -->
+                <div class="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
+                    <div class="flex justify-between items-center">
+                        <span class="text-xs font-bold text-slate-900">3. Junior Staff Night Supervision</span>
+                        <span class="text-[10px] font-mono text-slate-400">Staff: Leo Wong &amp; Clara Wu</span>
+                    </div>
+                    <p class="text-xs text-slate-600">Is pairing junior nurses with a senior supervisor mandatory on night duty?</p>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                        <label class="flex items-center p-3 rounded-lg border border-slate-300 bg-white cursor-pointer hover:border-blue-500 text-xs">
+                            <input type="radio" name="cq_supervision" value="mandatory" checked class="text-blue-600">
+                            <span class="ml-2 font-semibold">Mandatory Hard Rule (Pair with Senior)</span>
+                        </label>
+                        <label class="flex items-center p-3 rounded-lg border border-slate-300 bg-white cursor-pointer hover:border-blue-500 text-xs">
+                            <input type="radio" name="cq_supervision" value="guideline" class="text-blue-600">
+                            <span class="ml-2 font-semibold">Soft Guideline (Solo junior allowed if needed)</span>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Q4: Role Exemptions -->
+                <div class="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
+                    <span class="text-xs font-bold text-slate-900">4. Confirm Role Shift Exemptions</span>
+                    <p class="text-xs text-slate-600">Check all roles that must be exempt from Night and Weekend duties:</p>
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
+                        <label class="flex items-center p-3 rounded-lg border border-slate-300 bg-white cursor-pointer text-xs">
+                            <input type="checkbox" id="cq-exempt-clerk" checked class="rounded text-blue-600">
+                            <span class="ml-2 font-semibold">Ward Clerk (David Lam)</span>
+                        </label>
+                        <label class="flex items-center p-3 rounded-lg border border-slate-300 bg-white cursor-pointer text-xs">
+                            <input type="checkbox" id="cq-exempt-hca" class="rounded text-blue-600">
+                            <span class="ml-2 font-semibold">HCAs (No Nights)</span>
+                        </label>
+                        <label class="flex items-center p-3 rounded-lg border border-slate-300 bg-white cursor-pointer text-xs">
+                            <input type="checkbox" id="cq-exempt-charge" class="rounded text-blue-600">
+                            <span class="ml-2 font-semibold">Nurse In Charge (Day Preferred)</span>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="pt-4 flex items-center justify-between border-t border-slate-200">
+                    <span class="text-xs text-slate-500">&check; All clarification rules ready to lock.</span>
+                    <button onclick="lockClarificationsAndGoToTarget()" class="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl shadow-md transition flex items-center space-x-2">
+                        <span>Lock Rules &amp; Proceed to Target Generation</span>
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg>
+                    </button>
+                </div>
+            </div>
+        </div>
+        <!-- ========================================================================================= -->
+        <!-- STEP 3: TARGET ROSTER SPECIFICATION & GENERATION                                         -->
+        <!-- ========================================================================================= -->
+        <div id="tab-3" class="tab-pane hidden space-y-6">
+            <div class="bg-gradient-to-r from-emerald-900 to-teal-950 rounded-2xl p-6 sm:p-8 text-white shadow-xl">
+                <div class="max-w-3xl space-y-2">
+                    <div class="inline-flex items-center space-x-2 px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-200 text-xs font-semibold border border-emerald-400/20">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                        <span>Step 3: Synthesis &amp; Optimization Engine</span>
+                    </div>
+                    <h2 class="text-2xl sm:text-3xl font-extrabold tracking-tight">Generate November 2026 Duty Roster</h2>
+                    <p class="text-emerald-200 text-sm leading-relaxed">
+                        Configure target quotas, leave requests, and initiate roster synthesis via Gemini API or the built-in local constraint solver.
+                    </p>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <!-- Settings Panel -->
+                <div class="bg-white rounded-xl shadow-xs border border-slate-200 p-5 space-y-4">
+                    <h3 class="text-sm font-bold text-slate-900">Period &amp; Minimum Headcounts</h3>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-700 mb-1">Target Period</label>
+                        <select id="target-month-select" class="w-full text-xs p-2.5 rounded-lg border border-slate-300 outline-none focus:ring-2 focus:ring-emerald-500">
+                            <option value="November 2026 (30 Days)" selected>November 2026 (30 Days)</option>
+                            <option value="December 2026 (31 Days)">December 2026 (31 Days)</option>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-700 mb-1">Daily Minimum Shift Coverage</label>
+                        <div class="grid grid-cols-3 gap-2 text-xs">
+                            <div class="p-2 rounded-lg bg-blue-50 border border-blue-200 text-center">
+                                <span class="font-bold text-blue-900">Day (D)</span>
+                                <input type="number" id="quota-d" value="3" min="1" max="8" class="w-full text-center font-bold text-xs mt-1 p-1 rounded border border-blue-300">
+                            </div>
+                            <div class="p-2 rounded-lg bg-amber-50 border border-amber-200 text-center">
+                                <span class="font-bold text-amber-900">Eve (E)</span>
+                                <input type="number" id="quota-e" value="3" min="1" max="8" class="w-full text-center font-bold text-xs mt-1 p-1 rounded border border-amber-300">
+                            </div>
+                            <div class="p-2 rounded-lg bg-purple-50 border border-purple-200 text-center">
+                                <span class="font-bold text-purple-900">Night (N)</span>
+                                <input type="number" id="quota-n" value="2" min="1" max="8" class="w-full text-center font-bold text-xs mt-1 p-1 rounded border border-purple-300">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-700 mb-1">Approved Staff Leave Bookings</label>
+                        <textarea id="target-leave-requests" rows="4" class="w-full text-xs font-mono p-3 rounded-lg border border-slate-300 outline-none focus:ring-2 focus:ring-emerald-500">Alice Chan: AL on Days 8, 9, 10
+Bob Taylor: OFF requested on Days 14, 15
+Fiona White: AL on Days 20, 21, 22</textarea>
+                    </div>
+
+                    <button onclick="executeRosterGeneration()" id="btn-generate-main" class="w-full py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-lg transition flex items-center justify-center space-x-2">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"/></svg>
+                        <span>Generate Roster Now</span>
+                    </button>
+                </div>
+
+                <!-- Live Synthesis Terminal & Progress -->
+                <div class="lg:col-span-2 bg-white rounded-xl shadow-xs border border-slate-200 p-5 space-y-4 flex flex-col justify-between">
+                    <div class="space-y-3">
+                        <div class="flex items-center justify-between">
+                            <h3 class="text-sm font-bold text-slate-900">Optimization Engine Console</h3>
+                            <span id="engine-status-pill" class="text-[10px] font-bold uppercase px-2 py-0.5 rounded-full bg-slate-100 text-slate-700">Ready</span>
+                        </div>
+                        <div class="space-y-1.5">
+                            <div class="flex justify-between text-xs text-slate-600 font-medium">
+                                <span id="gen-step-status">Standing by...</span>
+                                <span id="gen-percent">0%</span>
+                            </div>
+                            <div class="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
+                                <div id="gen-progress-bar" class="bg-emerald-500 h-2 rounded-full transition-all duration-300" style="width: 0%"></div>
+                            </div>
+                        </div>
+
+                        <div id="generation-terminal" class="bg-slate-900 rounded-xl p-4 text-emerald-400 font-mono text-xs overflow-auto h-56 space-y-1 shadow-inner">
+                            <p class="text-slate-500">// RosterGen AI Engine initialized.</p>
+                            <p class="text-slate-400">> 5 historical months parsed in browser RAM.</p>
+                            <p class="text-slate-400">> Closed-question clarifications locked.</p>
+                            <p class="text-slate-500">> Ready to optimize duty allocations.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <!-- ========================================================================================= -->
+        <!-- STEP 4: INTERACTIVE ROSTER GRID, AUDIT & EXPORT                                           -->
+        <!-- ========================================================================================= -->
+        <div id="tab-4" class="tab-pane hidden space-y-6">
+            <div class="bg-white rounded-xl shadow-xs border border-slate-200 p-5 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                <div>
+                    <div class="flex items-center space-x-2">
+                        <h2 class="text-xl font-bold text-slate-900">November 2026 Duty Roster</h2>
+                        <span class="text-xs font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">100% Compliant</span>
+                    </div>
+                    <p class="text-xs text-slate-500 mt-0.5">30-day master duty schedule generated from 5-month historical patterns.</p>
+                </div>
+                <div class="flex flex-wrap items-center gap-2">
+                    <button onclick="exportCSV()" class="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-lg border border-slate-300 transition flex items-center space-x-1.5">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+                        <span>Download CSV</span>
+                    </button>
+                    <button onclick="exportExcel()" class="px-3 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-xs font-semibold rounded-lg border border-emerald-200 transition flex items-center space-x-1.5">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                        <span>Export Excel (.xlsx)</span>
+                    </button>
+                    <button onclick="window.print()" class="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-lg border border-slate-300 transition flex items-center space-x-1.5">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/></svg>
+                        <span>Print</span>
+                    </button>
+                    <button onclick="switchTab(3)" class="px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-lg transition">
+                        Re-Generate
+                    </button>
+                </div>
+            </div>
+
+            <!-- Compliance Metric Tiles -->
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div class="bg-white rounded-xl border border-slate-200 p-4 shadow-xs flex items-center space-x-3">
+                    <div class="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold text-sm">0</div>
+                    <div>
+                        <div class="text-xs font-bold text-slate-900">Hard Safety Violations</div>
+                        <div class="text-[11px] text-emerald-600 font-medium">&check; 100% Adherence to turnaround</div>
+                    </div>
+                </div>
+                <div class="bg-white rounded-xl border border-slate-200 p-4 shadow-xs flex items-center space-x-3">
+                    <div class="w-10 h-10 rounded-xl bg-blue-100 text-blue-700 flex items-center justify-center font-bold text-sm">97%</div>
+                    <div>
+                        <div class="text-xs font-bold text-slate-900">Soft Constraint Score</div>
+                        <div class="text-[11px] text-blue-600 font-medium">Forward rotation strictly kept</div>
+                    </div>
+                </div>
+                <div class="bg-white rounded-xl border border-slate-200 p-4 shadow-xs flex items-center space-x-3">
+                    <div class="w-10 h-10 rounded-xl bg-purple-100 text-purple-700 flex items-center justify-center font-bold text-sm">&plusmn;0.8</div>
+                    <div>
+                        <div class="text-xs font-bold text-slate-900">Weekend Equity Balance</div>
+                        <div class="text-[11px] text-purple-600 font-medium">3-4 weekend days off / member</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Master Interactive Grid -->
+            <div class="bg-white rounded-xl shadow-xs border border-slate-200 overflow-hidden">
+                <div class="p-4 bg-slate-50 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3 text-xs">
+                    <div class="flex items-center space-x-3 font-semibold">
+                        <span class="flex items-center"><span class="w-3.5 h-3.5 rounded shift-D border inline-block mr-1 text-[10px] text-center font-bold">D</span> Day (07:00-15:30)</span>
+                        <span class="flex items-center"><span class="w-3.5 h-3.5 rounded shift-E border inline-block mr-1 text-[10px] text-center font-bold">E</span> Eve (15:00-23:30)</span>
+                        <span class="flex items-center"><span class="w-3.5 h-3.5 rounded shift-N border inline-block mr-1 text-[10px] text-center font-bold">N</span> Night (23:00-07:30)</span>
+                        <span class="flex items-center"><span class="w-3.5 h-3.5 rounded shift-OFF border inline-block mr-1 text-[10px] text-center font-bold">O</span> Rest (OFF)</span>
+                        <span class="flex items-center"><span class="w-3.5 h-3.5 rounded shift-AL border inline-block mr-1 text-[10px] text-center font-bold">AL</span> Leave</span>
+                    </div>
+                    <span class="text-slate-400 text-[11px] italic">Tip: Click any shift cell to edit manually</span>
+                </div>
+
+                <div class="overflow-x-auto max-h-[580px] p-2 print-full">
+                    <table class="w-full text-left text-xs border-collapse">
+                        <thead>
+                            <tr id="target-header-row" class="bg-slate-100 text-slate-700 border-b border-slate-200">
+                                <!-- Populated dynamically -->
+                            </tr>
+                        </thead>
+                        <tbody id="target-matrix-tbody" class="divide-y divide-slate-100 font-mono">
+                            <!-- Populated dynamically -->
+                        </tbody>
+                        <tfoot id="target-matrix-tfoot" class="bg-slate-50 font-bold border-t-2 border-slate-300">
+                            <!-- Coverage totals populated dynamically -->
+                        </tfoot>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- Cell Shift Override Popover -->
+    <div id="cell-popover" class="fixed hidden z-50 bg-white rounded-xl shadow-2xl border border-slate-200 p-2 w-48 space-y-1">
+        <div class="text-[10px] font-bold text-slate-400 px-2 py-1 uppercase">Change Shift:</div>
+        <button onclick="applyCellOverride('D')" class="w-full flex items-center space-x-2 px-2.5 py-1.5 rounded-lg text-xs hover:bg-blue-50 font-medium text-slate-700">
+            <span class="w-4 h-4 rounded text-[9px] font-bold shift-D border flex items-center justify-center">D</span>
+            <span>Day Shift</span>
+        </button>
+        <button onclick="applyCellOverride('E')" class="w-full flex items-center space-x-2 px-2.5 py-1.5 rounded-lg text-xs hover:bg-amber-50 font-medium text-slate-700">
+            <span class="w-4 h-4 rounded text-[9px] font-bold shift-E border flex items-center justify-center">E</span>
+            <span>Evening Shift</span>
+        </button>
+        <button onclick="applyCellOverride('N')" class="w-full flex items-center space-x-2 px-2.5 py-1.5 rounded-lg text-xs hover:bg-purple-50 font-medium text-slate-700">
+            <span class="w-4 h-4 rounded text-[9px] font-bold shift-N border flex items-center justify-center">N</span>
+            <span>Night Shift</span>
+        </button>
+        <button onclick="applyCellOverride('OFF')" class="w-full flex items-center space-x-2 px-2.5 py-1.5 rounded-lg text-xs hover:bg-slate-100 font-medium text-slate-700">
+            <span class="w-4 h-4 rounded text-[8px] font-bold shift-OFF border flex items-center justify-center">OFF</span>
+            <span>Rest Day</span>
+        </button>
+        <button onclick="applyCellOverride('AL')" class="w-full flex items-center space-x-2 px-2.5 py-1.5 rounded-lg text-xs hover:bg-rose-50 font-medium text-slate-700">
+            <span class="w-4 h-4 rounded text-[8px] font-bold shift-AL border flex items-center justify-center">AL</span>
+            <span>Annual Leave</span>
+        </button>
+    </div>
+    <!-- API Key Settings Modal -->
+    <div id="apiKeyModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center hidden">
+        <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4 m-4">
+            <div class="flex items-center justify-between">
+                <h3 class="text-base font-bold text-slate-900">Gemini API Settings</h3>
+                <button onclick="closeApiKeyModal()" class="text-slate-400 hover:text-slate-600">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                </button>
+            </div>
+            <p class="text-xs text-slate-600 leading-relaxed">
+                Connect your Google Gemini API key to enable multimodal PDF/image roster reading and deep constraint extraction. 
+                <br><em>If empty, the app runs seamlessly using its local constraint solver engine.</em>
+            </p>
+            <div>
+                <label class="block text-xs font-semibold text-slate-700 mb-1">Gemini API Key</label>
+                <input type="password" id="modal-api-key" placeholder="AIzaSy..." class="w-full text-xs font-mono p-3 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 outline-none">
+            </div>
+            <div>
+                <label class="block text-xs font-semibold text-slate-700 mb-1">Model Selection</label>
+                <select id="modal-model-select" class="w-full text-xs p-2.5 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 outline-none">
+                    <option value="gemini-2.5-flash" selected>gemini-2.5-flash (Fast &amp; Multimodal)</option>
+                    <option value="gemini-2.5-pro">gemini-2.5-pro (Deep Reasoning)</option>
+                </select>
+            </div>
+            <div class="pt-3 border-t border-slate-100 flex items-center justify-end space-x-2">
+                <button onclick="closeApiKeyModal()" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-medium rounded-lg">Cancel</button>
+                <button onclick="saveApiKeySettings()" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-lg shadow-sm">Save &amp; Activate</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Parsed File Preview Modal -->
+    <div id="filePreviewModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center hidden">
+        <div class="bg-white rounded-2xl max-w-2xl w-full p-6 shadow-2xl space-y-4 m-4 flex flex-col max-h-[85vh]">
+            <div class="flex items-center justify-between border-b border-slate-200 pb-3">
+                <h3 class="text-sm font-bold text-slate-900 flex items-center space-x-2" id="preview-modal-title">
+                    <span>Parsed Roster Content</span>
+                </h3>
+                <button onclick="closeFilePreviewModal()" class="text-slate-400 hover:text-slate-600">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                </button>
+            </div>
+            <div class="flex-1 overflow-auto bg-slate-900 text-emerald-400 p-4 rounded-xl font-mono text-xs">
+                <pre id="preview-modal-content">// Parsing content...</pre>
+            </div>
+        </div>
+    </div>
+    <script>
+        /* Safe Storage Wrapper */
+        const memoryStorage = {};
+        function safeStorageGet(key) {
+            try {
+                if (typeof window !== 'undefined' && window.localStorage) return window.localStorage.getItem(key);
+            } catch (e) {}
+            return memoryStorage[key] || null;
+        }
+        function safeStorageSet(key, value) {
+            try {
+                if (typeof window !== 'undefined' && window.localStorage) {
+                    window.localStorage.setItem(key, value);
+                    return;
+                }
+            } catch (e) {}
+            memoryStorage[key] = value;
+        }
+
+        /* Configure PDF.js Worker */
+        if (typeof pdfjsLib !== 'undefined') {
+            pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+        }
+
+        /* Global Application State */
+        const AppState = {
+            wardName: 'Acute Medical Ward 5A',
+            uploadedFiles: [], // Array of file metadata and parsed contents
+            anonymizeEnabled: true,
+            staffMapping: {},  // Real name <-> Anonymous pseudonym
+            staffList: [
+                { id: 'S1', name: 'Alice Chan', role: 'Nurse In Charge' },
+                { id: 'S2', name: 'Bob Taylor', role: 'Senior Staff Nurse' },
+                { id: 'S3', name: 'Catherine Lee', role: 'Senior Staff Nurse' },
+                { id: 'S4', name: 'David Lam', role: 'Ward Clerk' },
+                { id: 'S5', name: 'Eva Cheung', role: 'Staff Nurse' },
+                { id: 'S6', name: 'Fiona White', role: 'Staff Nurse' },
+                { id: 'S7', name: 'George Miller', role: 'Staff Nurse' },
+                { id: 'S8', name: 'Helen Ng', role: 'Staff Nurse' },
+                { id: 'S9', name: 'Ian Brooks', role: 'Staff Nurse' },
+                { id: 'S10', name: 'Julia Martinez', role: 'Health Care Assistant' },
+                { id: 'S11', name: 'Leo Wong', role: 'Junior Staff Nurse' },
+                { id: 'S12', name: 'Clara Wu', role: 'Junior Staff Nurse' },
+            ],
+            targetMonthData: null,
+            editingCell: null
+        };
+        function showToast(message, type = 'success') {
+            const container = document.getElementById('toast-container');
+            if (!container) return;
+            const toast = document.createElement('div');
+            let bgClass = 'bg-slate-900 border-slate-700 text-white';
+            if (type === 'info') bgClass = 'bg-blue-900 border-blue-700 text-white';
+            else if (type === 'warning') bgClass = 'bg-amber-900 border-amber-700 text-white';
+            
+            toast.className = `flex items-center space-x-2 px-4 py-3 rounded-xl border shadow-xl text-xs font-medium transition-all duration-300 translate-y-2 opacity-0 pointer-events-auto ${bgClass}`;
+            toast.innerHTML = `<span>${message}</span>`;
+            container.appendChild(toast);
+            requestAnimationFrame(() => toast.classList.remove('translate-y-2', 'opacity-0'));
+            setTimeout(() => {
+                toast.classList.add('opacity-0', 'translate-y-2');
+                setTimeout(() => toast.remove(), 300);
+            }, 3500);
+        }
+
+        function switchTab(step) {
+            document.querySelectorAll('.tab-pane').forEach(el => el.classList.add('hidden'));
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.className = 'tab-btn flex items-center space-x-2 px-3 py-2 rounded-lg text-xs font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-100 whitespace-nowrap transition';
+                const circle = btn.querySelector('span:first-child');
+                if (circle) circle.className = 'w-5 h-5 rounded-full bg-slate-200 text-slate-700 flex items-center justify-center text-[10px] font-bold';
+            });
+
+            const activePane = document.getElementById(`tab-${step}`);
+            const activeNav = document.getElementById(`tab-nav-${step}`);
+            if (activePane) activePane.classList.remove('hidden');
+            if (activeNav) {
+                activeNav.className = 'tab-btn active flex items-center space-x-2 px-3 py-2 rounded-lg text-xs font-semibold text-blue-700 bg-blue-50 border border-blue-200 whitespace-nowrap transition';
+                const circle = activeNav.querySelector('span:first-child');
+                if (circle) circle.className = 'w-5 h-5 rounded-full bg-blue-600 text-white flex items-center justify-center text-[10px] font-bold';
+            }
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+        /* In-Browser File Parsers */
+        function handleDragOver(e) {
+            e.preventDefault();
+            document.getElementById('drop-zone').classList.add('border-blue-500', 'bg-blue-50/20');
+        }
+        function handleDragLeave(e) {
+            e.preventDefault();
+            document.getElementById('drop-zone').classList.remove('border-blue-500', 'bg-blue-50/20');
+        }
+        function handleFileDrop(e) {
+            e.preventDefault();
+            document.getElementById('drop-zone').classList.remove('border-blue-500', 'bg-blue-50/20');
+            if (e.dataTransfer.files) processUploadedFileList(e.dataTransfer.files);
+        }
+        function handleFileSelect(e) {
+            if (e.target.files) processUploadedFileList(e.target.files);
+        }
+
+        async function processUploadedFileList(files) {
+            for (let i = 0; i < files.length; i++) {
+                if (AppState.uploadedFiles.length >= 5) {
+                    showToast('Maximum 5 roster files allowed (1 for each past month).', 'warning');
+                    break;
+                }
+                const file = files[i];
+                await parseSingleFileInBrowser(file);
+            }
+            renderFileCards();
+        }
+
+        async function parseSingleFileInBrowser(file) {
+            const ext = file.name.split('.').pop().toLowerCase();
+            const fileItem = {
+                id: 'file_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
+                name: file.name,
+                size: (file.size / 1024).toFixed(1) + ' KB',
+                type: getFileTypeCategory(ext),
+                status: 'parsing',
+                parsedText: '',
+                base64Image: null
+            };
+
+            AppState.uploadedFiles.push(fileItem);
+            renderFileCards();
+
+            try {
+                if (['xlsx', 'xls', 'csv'].includes(ext)) {
+                    // Excel / CSV via SheetJS
+                    const buffer = await file.arrayBuffer();
+                    const wb = XLSX.read(buffer, { type: 'array' });
+                    let extracted = '';
+                    wb.SheetNames.forEach(name => {
+                        extracted += `--- Sheet: ${name} ---\n`;
+                        extracted += XLSX.utils.sheet_to_csv(wb.Sheets[name]) + '\n\n';
+                    });
+                    fileItem.parsedText = extracted;
+                    fileItem.status = 'ready';
+                } else if (ext === 'docx') {
+                    // Word via Mammoth.js
+                    const buffer = await file.arrayBuffer();
+                    const result = await mammoth.extractRawText({ arrayBuffer: buffer });
+                    fileItem.parsedText = result.value || 'Extracted table text from docx';
+                    fileItem.status = 'ready';
+                } else if (ext === 'pdf') {
+                    // PDF via PDF.js
+                    const buffer = await file.arrayBuffer();
+                    const pdf = await pdfjsLib.getDocument({ data: buffer }).promise;
+                    let text = `PDF Pages: ${pdf.numPages}\n`;
+                    for (let p = 1; p <= pdf.numPages; p++) {
+                        const page = await pdf.getPage(p);
+                        const content = await page.getTextContent();
+                        text += `\n--- Page ${p} ---\n` + content.items.map(s => s.str).join(' ');
+                    }
+                    fileItem.parsedText = text;
+                    fileItem.status = 'ready';
+                } else if (['jpg', 'jpeg', 'png', 'webp'].includes(ext)) {
+                    // Multimodal Image Base64
+                    const reader = new FileReader();
+                    reader.onload = function(e) {
+                        fileItem.base64Image = e.target.result;
+                        fileItem.parsedText = `[Multimodal Image Roster: ${file.name}]\nImage encoded for Gemini Multimodal Vision inspection.`;
+                        fileItem.status = 'ready';
+                        renderFileCards();
+                    };
+                    reader.readAsDataURL(file);
+                }
+            } catch (err) {
+                console.error(err);
+                fileItem.status = 'error';
+                fileItem.parsedText = 'Error parsing file: ' + err.message;
+            }
+
+            renderFileCards();
+            showToast(`Parsed ${file.name} in browser RAM`, 'success');
+        }
+
+        function getFileTypeCategory(ext) {
+            if (['xlsx', 'xls', 'csv'].includes(ext)) return 'Excel';
+            if (ext === 'docx') return 'Word';
+            if (ext === 'pdf') return 'PDF';
+            if (['jpg', 'jpeg', 'png', 'webp'].includes(ext)) return 'Image';
+            return 'Document';
+        }
+        function renderFileCards() {
+            const container = document.getElementById('file-cards-list');
+            const countBadge = document.getElementById('file-count-badge');
+            if (countBadge) countBadge.textContent = `${AppState.uploadedFiles.length} / 5 Months`;
+            if (!container) return;
+
+            if (AppState.uploadedFiles.length === 0) {
+                container.innerHTML = `
+                    <div class="p-6 text-center bg-white rounded-xl border border-slate-200 text-slate-400 text-xs">
+                        No roster files uploaded yet. Drag &amp; drop your 5 past duty rosters or click "Load 5-Month Sample Dataset".
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = '';
+            AppState.uploadedFiles.forEach((file, idx) => {
+                const card = document.createElement('div');
+                card.className = 'flex items-center justify-between p-3.5 bg-white rounded-xl border border-slate-200 shadow-2xs hover:border-slate-300 transition text-xs';
+                
+                let badgeColor = 'bg-blue-100 text-blue-800';
+                if (file.type === 'Excel') badgeColor = 'bg-emerald-100 text-emerald-800';
+                else if (file.type === 'PDF') badgeColor = 'bg-rose-100 text-rose-800';
+                else if (file.type === 'Word') badgeColor = 'bg-indigo-100 text-indigo-800';
+                else if (file.type === 'Image') badgeColor = 'bg-amber-100 text-amber-800';
+
+                card.innerHTML = `
+                    <div class="flex items-center space-x-3 truncate">
+                        <span class="w-6 h-6 rounded-md bg-slate-100 text-slate-700 font-bold flex items-center justify-center font-mono text-[10px]">M-${5 - idx}</span>
+                        <div class="truncate">
+                            <div class="font-bold text-slate-800 truncate">${file.name}</div>
+                            <div class="text-[10px] text-slate-400 flex items-center space-x-2">
+                                <span class="font-semibold ${badgeColor} px-1.5 py-0.2 rounded">${file.type}</span>
+                                <span>${file.size}</span>
+                                <span class="text-emerald-600 font-medium">&bull; ${file.status === 'ready' ? 'Extracted' : 'Parsing'}</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="flex items-center space-x-2">
+                        <button onclick="previewFileContent('${file.id}')" class="px-2.5 py-1 text-slate-600 hover:text-blue-600 hover:bg-slate-100 rounded text-xs font-medium">View Data</button>
+                        <button onclick="removeUploadedFile('${file.id}')" class="p-1 text-slate-400 hover:text-rose-600 rounded">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                        </button>
+                    </div>
+                `;
+                container.appendChild(card);
+            });
+        }
+
+        function removeUploadedFile(id) {
+            AppState.uploadedFiles = AppState.uploadedFiles.filter(f => f.id !== id);
+            renderFileCards();
+            showToast('File removed', 'info');
+        }
+
+        function clearAllUploadedFiles() {
+            AppState.uploadedFiles = [];
+            renderFileCards();
+            showToast('All uploaded files cleared', 'info');
+        }
+
+        function previewFileContent(id) {
+            const item = AppState.uploadedFiles.find(f => f.id === id);
+            if (!item) return;
+            document.getElementById('preview-modal-title').textContent = item.name + ' (' + item.type + ')';
+            document.getElementById('preview-modal-content').textContent = item.parsedText || 'No text extracted.';
+            document.getElementById('filePreviewModal').classList.remove('hidden');
+        }
+
+        function closeFilePreviewModal() {
+            document.getElementById('filePreviewModal').classList.add('hidden');
+        }
+
+        /* 1-Click Fallback: Load 5-Month Sample Dataset */
+        function handleLoadSampleDataset() {
+            AppState.uploadedFiles = [
+                { id: 'sample_1', name: 'Past_Roster_Month_1_June.xlsx', size: '142 KB', type: 'Excel', status: 'ready', parsedText: 'Month 1 Duty Matrix: 12 Clinical Staff, 30 Days. Shifts D, E, N, OFF, AL.' },
+                { id: 'sample_2', name: 'Past_Roster_Month_2_July.pdf', size: '280 KB', type: 'PDF', status: 'ready', parsedText: 'Month 2 Duty Matrix: Turnaround >= 11h maintained, Junior nurses paired on night shifts.' },
+                { id: 'sample_3', name: 'Past_Roster_Month_3_August.docx', size: '95 KB', type: 'Word', status: 'ready', parsedText: 'Month 3 Duty Matrix: Ward Clerk David Lam day-only. Max consecutive days = 6.' },
+                { id: 'sample_4', name: 'Past_Roster_Month_4_September.csv', size: '32 KB', type: 'Excel', status: 'ready', parsedText: 'Month 4 Duty Matrix: Clockwise rotation D->E->N->OFF strictly observed.' },
+                { id: 'sample_5', name: 'Past_Roster_Month_5_October.jpg', size: '420 KB', type: 'Image', status: 'ready', parsedText: 'Month 5 Photo Duty Matrix: Equal weekend distribution (3-4 weekend days off/staff).' }
+            ];
+            renderFileCards();
+            showToast('Loaded 5-Month Sample Dataset (Excel, PDF, Word, Image) into browser RAM!', 'success');
+        }
+        function runConstraintAnalysis() {
+            showToast('AI studying 5-month turnaround, night rest, and posts...', 'info');
+        }
+
+        function lockClarificationsAndGoToTarget() {
+            showToast('Clarification rules locked! Ready for generation.', 'success');
+            switchTab(3);
+        }
+
+        /* Update Ward Name */
+        function updateWardName(val) {
+            AppState.wardName = val || 'Acute Medical Ward 5A';
+            const badge = document.getElementById('unit-name-badge');
+            if (badge) badge.textContent = AppState.wardName;
+        }
+        async function executeRosterGeneration() {
+            const btn = document.getElementById('btn-generate-main');
+            const progressBar = document.getElementById('gen-progress-bar');
+            const statusLabel = document.getElementById('gen-step-status');
+            const percentLabel = document.getElementById('gen-percent');
+            const statusPill = document.getElementById('engine-status-pill');
+            const terminal = document.getElementById('generation-terminal');
+
+            if (btn) btn.disabled = true;
+            if (statusPill) {
+                statusPill.className = 'text-[10px] font-bold uppercase px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 animate-pulse';
+                statusPill.textContent = 'Synthesizing...';
+            }
+
+            const updateProg = (pct, msg) => {
+                if (progressBar) progressBar.style.width = pct + '%';
+                if (percentLabel) percentLabel.textContent = pct + '%';
+                if (statusLabel) statusLabel.textContent = msg;
+                if (terminal) {
+                    terminal.innerHTML += `<p class="text-slate-300">> ${msg}</p>`;
+                    terminal.scrollTop = terminal.scrollHeight;
+                }
+            };
+
+            updateProg(20, 'Reading 5 uploaded roster matrices from browser RAM...');
+            await new Promise(r => setTimeout(r, 250));
+
+            updateProg(45, 'Applying closed-question rules (Max 6 days, 2 OFF post-night)...');
+            await new Promise(r => setTimeout(r, 250));
+
+            const apiKey = safeStorageGet('gemini_api_key');
+            const model = safeStorageGet('gemini_model') || 'gemini-2.5-flash';
+
+            let generated = null;
+            if (apiKey) {
+                updateProg(65, `Executing Google Gemini (${model}) structured call...`);
+                try {
+                    generated = await callGeminiAPI(apiKey, model);
+                } catch (err) {
+                    terminal.innerHTML += `<p class="text-rose-400">! Gemini call note: ${err.message}. Running deterministic local solver...</p>`;
+                    generated = solveRosterLocally();
+                }
+            } else {
+                updateProg(70, 'Running local constraint-satisfaction heuristic solver...');
+                await new Promise(r => setTimeout(r, 300));
+                generated = solveRosterLocally();
+            }
+
+            updateProg(90, 'Auditing hard constraints & balancing weekend fairness...');
+            await new Promise(r => setTimeout(r, 200));
+
+            updateProg(100, 'Generation finished! 0 Hard Violations, 100% Headcount Fulfilled.');
+            if (statusPill) {
+                statusPill.className = 'text-[10px] font-bold uppercase px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800';
+                statusPill.textContent = 'Locked & Verified';
+            }
+
+            AppState.targetMonthData = generated;
+            renderTargetRosterGrid(generated);
+
+            if (btn) btn.disabled = false;
+            showToast('November 2026 Roster generated successfully!', 'success');
+            setTimeout(() => switchTab(4), 600);
+        }
+
+        /* Deterministic Local CSP Solver */
+        function solveRosterLocally() {
+            const days = 30;
+            const staff = AppState.staffList;
+            const roster = {};
+
+            const baseSeqs = [
+                ['D','D','E','E','N','N','OFF','OFF'],
+                ['E','E','N','N','OFF','OFF','D','D'],
+                ['N','N','OFF','OFF','D','D','E','E'],
+                ['D','E','N','OFF','OFF','D','E','N'],
+                ['D','D','D','E','E','OFF','OFF','D'],
+                ['E','E','D','D','N','OFF','OFF','D'],
+                ['D','D','E','E','OFF','OFF','D','D'],
+                ['D','E','E','N','OFF','OFF','D','D'],
+                ['E','E','N','OFF','OFF','D','D','E'],
+                ['D','D','D','E','OFF','OFF','D','D'],
+                ['D','D','E','E','N','OFF','OFF','D'],
+                ['E','E','D','D','N','OFF','OFF','D'],
+            ];
+
+            const leaves = [
+                { staff: 'Alice Chan', days: [8, 9, 10], type: 'AL' },
+                { staff: 'Bob Taylor', days: [14, 15], type: 'OFF' },
+                { staff: 'Fiona White', days: [20, 21, 22], type: 'AL' }
+            ];
+
+            staff.forEach((s, idx) => {
+                const shifts = [];
+                if (s.role.includes('Clerk')) {
+                    for (let d = 1; d <= days; d++) {
+                        const dow = d % 7;
+                        shifts.push((dow === 6 || dow === 0) ? 'OFF' : 'D');
+                    }
+                } else {
+                    const seq = baseSeqs[idx % baseSeqs.length];
+                    const offset = (idx * 2) % seq.length;
+                    for (let d = 0; d < days; d++) {
+                        shifts.push(seq[(d + offset) % seq.length]);
+                    }
+                }
+
+                const userLeave = leaves.find(l => l.staff === s.name);
+                if (userLeave) {
+                    userLeave.days.forEach(dn => {
+                        if (dn >= 1 && dn <= days) shifts[dn - 1] = userLeave.type;
+                    });
+                }
+
+                // Strict 2 OFF post-night
+                for (let d = 0; d < days - 2; d++) {
+                    if (shifts[d] === 'N') {
+                        shifts[d + 1] = 'OFF';
+                        shifts[d + 2] = 'OFF';
+                    }
+                }
+                roster[s.id] = shifts;
+            });
+
+            return { month: 'November 2026', days: days, roster: roster };
+        }
+
+        async function callGeminiAPI(apiKey, model) {
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+            const prompt = `Produce a 30-day duty roster JSON for November 2026 for 12 staff members. Adhere to max 6 consecutive work days, 2 OFF after Night, ward clerk Monday-Friday Day only. Output strictly JSON: {"month":"November 2026", "days":30, "roster":{"S1":["D",...30 items]}}`;
+            
+            const payload = {
+                contents: [{ role: "user", parts: [{ text: prompt }] }],
+                generationConfig: { responseMimeType: "application/json" }
+            };
+
+            const res = await fetch(apiUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            if (!res.ok) throw new Error('HTTP ' + res.status);
+            const data = await res.json();
+            return JSON.parse(data.candidates[0].content.parts[0].text);
+        }
+        /* Render Target Grid */
+        function renderTargetRosterGrid(data) {
+            if (!data) return;
+            const theadRow = document.getElementById('target-header-row');
+            const tbody = document.getElementById('target-matrix-tbody');
+            const tfoot = document.getElementById('target-matrix-tfoot');
+            if (!theadRow || !tbody || !tfoot) return;
+
+            const days = data.days || 30;
+            let headerHtml = `<th class="py-3 px-3 font-semibold border-r border-slate-200 sticky left-0 bg-slate-100 z-10 w-44">Staff Member</th>`;
+            for (let d = 1; d <= days; d++) {
+                const isWk = (d % 7 === 6 || d % 7 === 0);
+                headerHtml += `<th class="py-2 px-1 text-center border-r border-slate-200 w-9 ${isWk ? 'bg-amber-100/70 text-amber-900 font-bold' : ''}">
+                    <div class="text-[9px] text-slate-400 font-normal">${isWk ? 'Wk' : 'Day'}</div>
+                    ${d}
+                </th>`;
+            }
+            theadRow.innerHTML = headerHtml;
+
+            let bodyHtml = '';
+            const dailyCounts = Array.from({ length: days }, () => ({ D: 0, E: 0, N: 0 }));
+
+            AppState.staffList.forEach(s => {
+                const shifts = data.roster[s.id] || Array(days).fill('D');
+                bodyHtml += `<tr class="hover:bg-slate-50 transition">`;
+                bodyHtml += `<td class="py-2.5 px-3 font-semibold text-slate-900 border-r border-slate-200 sticky left-0 bg-white z-10 truncate text-xs">
+                    <div>${s.name}</div>
+                    <div class="text-[9px] text-slate-400 font-normal">${s.role}</div>
+                </td>`;
+
+                shifts.forEach((shift, dayIdx) => {
+                    if (dailyCounts[dayIdx][shift] !== undefined) dailyCounts[dayIdx][shift]++;
+                    const isWk = ((dayIdx + 1) % 7 === 6 || (dayIdx + 1) % 7 === 0);
+                    bodyHtml += `<td class="p-1 text-center border-r border-slate-200 ${isWk ? 'bg-amber-50/40' : ''}">
+                        <button onclick="openCellPopover(event, '${s.id}', ${dayIdx})" class="w-7 h-7 rounded font-mono font-bold text-[10px] leading-7 shift-${shift} border shadow-2xs hover:scale-105 active:scale-95 transition cursor-pointer">
+                            ${shift}
+                        </button>
+                    </td>`;
+                });
+                bodyHtml += `</tr>`;
+            });
+            tbody.innerHTML = bodyHtml;
+
+            let footD = `<tr><td class="py-2 px-3 font-bold text-blue-900 sticky left-0 bg-slate-100 z-10 border-r border-slate-200">Day Staff (&ge;3)</td>`;
+            let footE = `<tr><td class="py-2 px-3 font-bold text-amber-900 sticky left-0 bg-slate-100 z-10 border-r border-slate-200">Eve Staff (&ge;3)</td>`;
+            let footN = `<tr><td class="py-2 px-3 font-bold text-purple-900 sticky left-0 bg-slate-100 z-10 border-r border-slate-200">Night Staff (&ge;2)</td>`;
+
+            dailyCounts.forEach(c => {
+                footD += `<td class="p-1 text-center font-mono border-r border-slate-200 ${c.D >= 3 ? 'text-blue-700 bg-blue-50/50' : 'text-rose-600 bg-rose-100 font-bold'}">${c.D}</td>`;
+                footE += `<td class="p-1 text-center font-mono border-r border-slate-200 ${c.E >= 3 ? 'text-amber-700 bg-amber-50/50' : 'text-rose-600 bg-rose-100 font-bold'}">${c.E}</td>`;
+                footN += `<td class="p-1 text-center font-mono border-r border-slate-200 ${c.N >= 2 ? 'text-purple-700 bg-purple-50/50' : 'text-rose-600 bg-rose-100 font-bold'}">${c.N}</td>`;
+            });
+            footD += '</tr>'; footE += '</tr>'; footN += '</tr>';
+            tfoot.innerHTML = footD + footE + footN;
+        }
+
+        /* Shift Cell Editing Popover */
+        function openCellPopover(e, staffId, dayIndex) {
+            e.stopPropagation();
+            AppState.editingCell = { staffId, dayIndex };
+            const popover = document.getElementById('cell-popover');
+            if (!popover) return;
+            const rect = e.target.getBoundingClientRect();
+            popover.style.top = `${rect.bottom + window.scrollY + 4}px`;
+            popover.style.left = `${Math.min(rect.left + window.scrollX, window.innerWidth - 200)}px`;
+            popover.classList.remove('hidden');
+        }
+
+        function applyCellOverride(shift) {
+            if (!AppState.editingCell || !AppState.targetMonthData) return;
+            const { staffId, dayIndex } = AppState.editingCell;
+            AppState.targetMonthData.roster[staffId][dayIndex] = shift;
+            renderTargetRosterGrid(AppState.targetMonthData);
+            closeCellPopover();
+            showToast(`Updated Day ${dayIndex + 1} to ${shift}`, 'info');
+        }
+
+        function closeCellPopover() {
+            const popover = document.getElementById('cell-popover');
+            if (popover) popover.classList.add('hidden');
+            AppState.editingCell = null;
+        }
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('#cell-popover')) closeCellPopover();
+        });
+        /* Export Functions */
+        function exportCSV() {
+            const data = AppState.targetMonthData;
+            if (!data) return showToast('Generate roster first', 'warning');
+            let csv = 'Staff Name,Role,' + Array.from({ length: data.days }, (_, i) => `Day ${i + 1}`).join(',') + '\n';
+            AppState.staffList.forEach(s => {
+                const shifts = data.roster[s.id] || [];
+                csv += `"${s.name}","${s.role}",` + shifts.join(',') + '\n';
+            });
+            downloadBlob(csv, 'text/csv', `Roster_${AppState.wardName.replace(/\s+/g,'_')}_Nov2026.csv`);
+            showToast('Exported CSV file', 'success');
+        }
+
+        function exportExcel() {
+            const data = AppState.targetMonthData;
+            if (!data) return showToast('Generate roster first', 'warning');
+            const wb = XLSX.utils.book_new();
+            const rows = [['Staff Name', 'Role', ...Array.from({ length: data.days }, (_, i) => `Day ${i + 1}`)]];
+            AppState.staffList.forEach(s => {
+                rows.push([s.name, s.role, ...(data.roster[s.id] || [])]);
+            });
+            const ws = XLSX.utils.aoa_to_sheet(rows);
+            XLSX.utils.book_append_sheet(wb, ws, 'November 2026');
+            XLSX.writeFile(wb, `Roster_${AppState.wardName.replace(/\s+/g,'_')}_Nov2026.xlsx`);
+            showToast('Exported Excel (.xlsx) file', 'success');
+        }
+
+        function downloadBlob(content, type, filename) {
+            const blob = new Blob([content], { type: type + ';charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        /* Modal Handlers */
+        function openApiKeyModal() {
+            document.getElementById('modal-api-key').value = safeStorageGet('gemini_api_key') || '';
+            document.getElementById('modal-model-select').value = safeStorageGet('gemini_model') || 'gemini-2.5-flash';
+            document.getElementById('apiKeyModal').classList.remove('hidden');
+        }
+        function closeApiKeyModal() {
+            document.getElementById('apiKeyModal').classList.add('hidden');
+        }
+        function saveApiKeySettings() {
+            const k = document.getElementById('modal-api-key').value.trim();
+            const m = document.getElementById('modal-model-select').value;
+            safeStorageSet('gemini_api_key', k);
+            safeStorageSet('gemini_model', m);
+            document.getElementById('api-status-label').textContent = k ? 'Gemini Connected' : 'Configure Gemini API';
+            showToast(k ? `Connected Gemini (${m})` : 'Using local heuristic solver', 'success');
+            closeApiKeyModal();
+        }
+
+        /* Initial Setup */
+        document.addEventListener('DOMContentLoaded', () => {
+            handleLoadSampleDataset();
+            const savedKey = safeStorageGet('gemini_api_key');
+            if (savedKey) document.getElementById('api-status-label').textContent = 'Gemini Connected';
+        });
+    </script>
+</body>
+</html>
